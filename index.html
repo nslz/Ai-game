@@ -1,0 +1,243 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+    <meta charset="UTF-8">
+    <title>Moving Walls - Score Version</title>
+
+    <style>
+    body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        background: #222;
+        font-family: Arial;
+        color: white;
+        overflow: hidden;
+        position: relative;
+    }
+
+    #game {
+        display: grid;
+        grid-template-columns: repeat(7, 45px);
+        grid-template-rows: repeat(7, 45px);
+        gap: 5px;
+        margin-top: 30px;
+    }
+
+    .cell {
+        width: 45px;
+        height: 45px;
+        background: #444;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 32px;
+        border-radius: 6px;
+    }
+
+    .player { background: #00aaff; }
+    .enemy { background: #ff4444; }
+    .wall  { background: #777; }
+
+    button {
+        margin-top: 20px;
+        padding: 8px 16px;
+        font-size: 18px;
+        border: none;
+        background: #00aaff;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #0088cc;
+    }
+
+    #scoreBox {
+        color: white;
+        font-size: 16px;
+        position: absolute;
+        top: 90px;
+        left: 150px;
+    }
+    </style>
+    </head>
+    <body>
+
+    <h1 style="text-align:center; margin:70px 0 0 0; font-size:26px;"> Catch me <br>if you can</h1>
+    <div id="scoreBox">
+    | High Score: <span id="highScore">0</span> <br> | Score: <span id="score">0</span>
+    </div>
+
+    <div id="game"></div>
+    <button onclick="restartGame()">Restart</button>
+
+    <script>
+    let grid;
+    let idleTimer;
+    let score = 0;
+    let highScore = 0;
+
+    function resetIdleTimer() {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+            alert("Game Over! You stayed idle too long!");
+            endGame();
+        }, 300000);
+    }
+
+    function restartGame() {
+        grid = [
+            ["P", ".", ".", ".", ".", ".", "."],
+            [".", "#", ".", ".", "#", ".", "."],
+            [".", ".", ".", "#", ".", ".", "."],
+            [".", ".", ".", ".", ".", "#", "."],
+            [".", ".", "#", ".", ".", ".", "."],
+            [".", ".", ".", ".", "#", ".", "."],
+            [".", ".", ".", ".", ".", ".", "E"]
+        ];
+
+        score = 0;
+        updateScore();
+        render();
+        resetIdleTimer();
+    }
+
+    function updateScore() {
+        document.getElementById("score").textContent = score;
+        document.getElementById("highScore").textContent = highScore;
+    }
+
+    function endGame() {
+        if (score > highScore) highScore = score;
+        updateScore();
+        restartGame();
+    }
+
+    function render() {
+        const game = document.getElementById("game");
+        game.innerHTML = "";
+
+        for (let i = 0; i < 7; i++)
+            for (let j = 0; j < 7; j++) {
+                let cell = document.createElement("div");
+                cell.classList.add("cell");
+
+                if (grid[i][j] === "P") cell.classList.add("player");
+                if (grid[i][j] === "E") cell.classList.add("enemy");
+                if (grid[i][j] === "#") cell.classList.add("wall");
+
+                game.appendChild(cell);
+            }
+    }
+
+    function find(symbol) {
+        for (let i = 0; i < 7; i++)
+            for (let j = 0; j < 7; j++)
+                if (grid[i][j] === symbol) return [i, j];
+    }
+
+    function bfs(start, target) {
+        let queue = [[start]];
+        let visited = new Set([start.toString()]);
+        let moves = [[1,0],[-1,0],[0,1],[0,-1]];
+
+        while (queue.length) {
+            let path = queue.shift();
+            let [x, y] = path[path.length - 1];
+
+            if (x === target[0] && y === target[1]) return path;
+
+            for (let m of moves) {
+                let nx = x + m[0], ny = y + m[1];
+
+                if (nx < 0 || nx >= 7 || ny < 0 || ny >= 7) continue;
+                if (grid[nx][ny] === "#") continue;
+
+                let key = nx + "," + ny;
+                if (!visited.has(key)) {
+                    visited.add(key);
+                    queue.push([...path, [nx, ny]]);
+                }
+            }
+        }
+        return null;
+    }
+
+    function movePlayer(dx, dy) {
+        resetIdleTimer();
+
+        let [x, y] = find("P");
+        let nx = x + dx, ny = y + dy;
+
+        if (nx < 0 || nx >= 7 || ny < 0 || ny >= 7) return;
+        if (grid[nx][ny] === "#") return;
+
+        grid[x][y] = ".";
+        grid[nx][ny] = "P";
+
+        score++;
+        updateScore();
+
+        moveEnemy();
+        render();
+    }
+
+    function moveEnemy() {
+        let player = find("P");
+        let enemy = find("E");
+
+        let path = bfs(enemy, player);
+        if (path && path.length > 1) {
+            let [ex, ey] = enemy;
+            let [nx, ny] = path[1];
+
+            grid[ex][ey] = ".";
+            grid[nx][ny] = "E";
+
+            if (nx === player[0] && ny === player[1]) {
+                alert("Game Over! The enemy caught you!");
+                endGame();
+            }
+        }
+    }
+
+    function moveWallsRandomly() {
+        let emptyCells = [];
+
+        for (let i = 0; i < 7; i++)
+            for (let j = 0; j < 7; j++)
+                if (grid[i][j] === ".") emptyCells.push([i, j]);
+
+        for (let i = 0; i < 7; i++)
+            for (let j = 0; j < 7; j++)
+                if (grid[i][j] === "#") grid[i][j] = ".";
+
+        for (let k = 0; k < 8; k++) {
+            let spot = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            let [x, y] = spot;
+            grid[x][y] = "#";
+        }
+
+        render();
+    }
+
+    setInterval(moveWallsRandomly, 5000);
+
+    document.addEventListener("keydown", e => {
+        if (e.key === "ArrowUp") movePlayer(-1, 0);
+        if (e.key === "ArrowDown") movePlayer(1, 0);
+        if (e.key === "ArrowLeft") movePlayer(0, -1);
+        if (e.key === "ArrowRight") movePlayer(0, 1);
+    });
+
+    restartGame();
+    </script>
+
+    </body>
+    </html>
